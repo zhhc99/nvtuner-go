@@ -1,7 +1,5 @@
 package nvidia
 
-// TODO: fall back (temperature / clkvf, etc. see nvtuner.cpp)
-
 import (
 	"fmt"
 	"nvtuner-go/internal/gpu"
@@ -100,31 +98,80 @@ func (g *NvidiaGpu) getPowerViaSample() (int, error) {
 }
 
 func (g *NvidiaGpu) GetTemperature() (int, error) {
-	var temp uint32
-	if ret := g.symbols.DeviceGetTemperature(g.handle, TEMPERATURE_GPU, &temp); ret != SUCCESS {
+	// fallback
+	if g.symbols.DeviceGetTemperatureV == nil {
+		var temp uint32
+		if ret := g.symbols.DeviceGetTemperature(g.handle, TEMPERATURE_GPU, &temp); ret != SUCCESS {
+			return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return int(temp), nil
+	}
+
+	var temp Temperature
+	temp.Version = VERSION_TEMPERATURE
+	temp.SensorType = TEMPERATURE_GPU
+	if ret := g.symbols.DeviceGetTemperatureV(g.handle, &temp); ret != SUCCESS {
 		return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
-	return int(temp), nil
+	return int(temp.Temperature), nil
+
 }
 
 func (g *NvidiaGpu) GetFanSpeed() (int, int, error) {
 	var percent uint32
-	var fan FanSpeedInfo
-	fan.Version = VERSION_FAN_SPEED
-	_ = g.symbols.DeviceGetFanSpeed(g.handle, &percent)
-	_ = g.symbols.DeviceGetFanSpeedRPM(g.handle, &fan)
-	return int(percent), int(fan.Speed), nil
+	if ret := g.symbols.DeviceGetFanSpeed(g.handle, &percent); ret != SUCCESS {
+		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+	}
+
+	// error only if fan speed percent is not available
+	if g.symbols.DeviceGetFanSpeedRPM != nil {
+		var fan FanSpeedInfo
+		fan.Version = VERSION_FAN_SPEED
+		if g.symbols.DeviceGetFanSpeedRPM(g.handle, &fan) == SUCCESS {
+			return int(percent), int(fan.Speed), nil
+		}
+	}
+	return int(percent), 0, nil
 }
 
-func (g *NvidiaGpu) GetCo() (int, int, error) {
+func (g *NvidiaGpu) GetCoGpu() (int, error) {
+	// fallback
+	if g.symbols.DeviceGetClockOffsets == nil {
+		var co int32
+		if ret := g.symbols.DeviceGetGpcClkVfOffset(g.handle, &co); ret != SUCCESS {
+			return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return int(co), nil
+	}
+
 	var co ClockOffset
 	co.Version = VERSION_CLOCK_OFFSET
 	co.Type = CLOCK_GRAPHICS
 	co.Pstate = PSTATE_0
 	if ret := g.symbols.DeviceGetClockOffsets(g.handle, &co); ret != SUCCESS {
-		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+		return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
-	return int(co.ClockOffsetMHz), 0, nil // TODO: memory co
+	return int(co.ClockOffsetMHz), nil
+}
+
+func (g *NvidiaGpu) GetCoMem() (int, error) {
+	// fallback
+	if g.symbols.DeviceGetClockOffsets == nil {
+		var co int32
+		if ret := g.symbols.DeviceGetMemClkVfOffset(g.handle, &co); ret != SUCCESS {
+			return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return int(co), nil
+	}
+
+	var co ClockOffset
+	co.Version = VERSION_CLOCK_OFFSET
+	co.Type = CLOCK_MEM
+	co.Pstate = PSTATE_0
+	if ret := g.symbols.DeviceGetClockOffsets(g.handle, &co); ret != SUCCESS {
+		return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+	}
+	return int(co.ClockOffsetMHz), nil
 }
 
 func (g *NvidiaGpu) GetPl() (int, error) {
@@ -136,15 +183,43 @@ func (g *NvidiaGpu) GetPl() (int, error) {
 }
 
 func (g *NvidiaGpu) GetCoLimGpu() (int, int, error) {
-	var min, max int32
-	if ret := g.symbols.DeviceGetGpcClkMinMaxVfOffset(g.handle, &min, &max); ret != SUCCESS {
+	// fallback
+	if g.symbols.DeviceGetClockOffsets == nil {
+		var min, max int32
+		if ret := g.symbols.DeviceGetGpcClkMinMaxVfOffset(g.handle, &min, &max); ret != SUCCESS {
+			return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return int(min), int(max), nil
+	}
+
+	var co ClockOffset
+	co.Version = VERSION_CLOCK_OFFSET
+	co.Type = CLOCK_GRAPHICS
+	co.Pstate = PSTATE_0
+	if ret := g.symbols.DeviceGetClockOffsets(g.handle, &co); ret != SUCCESS {
 		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
-	return int(min), int(max), nil
+	return int(co.MinClockOffsetMHz), int(co.MaxClockOffsetMHz), nil
 }
 
 func (g *NvidiaGpu) GetCoLimMem() (int, int, error) {
-	return 0, 0, fmt.Errorf("not implemented for memory via this api")
+	// fallback
+	if g.symbols.DeviceGetClockOffsets == nil {
+		var min, max int32
+		if ret := g.symbols.DeviceGetMemClkMinMaxVfOffset(g.handle, &min, &max); ret != SUCCESS {
+			return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return int(min), int(max), nil
+	}
+
+	var co ClockOffset
+	co.Version = VERSION_CLOCK_OFFSET
+	co.Type = CLOCK_MEM
+	co.Pstate = PSTATE_0
+	if ret := g.symbols.DeviceGetClockOffsets(g.handle, &co); ret != SUCCESS {
+		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+	}
+	return int(co.MinClockOffsetMHz), int(co.MaxClockOffsetMHz), nil
 }
 
 func (g *NvidiaGpu) GetPlLim() (int, int, error) {
@@ -155,6 +230,16 @@ func (g *NvidiaGpu) GetPlLim() (int, int, error) {
 	return int(min), int(max), nil
 }
 
+func (g *NvidiaGpu) CanSetPl() bool {
+	var limit uint32
+
+	// pl are controlled by vbios/hardware on some laptop GPUs (and getter always fails)
+	// setter still succeeds but does nothing
+	return g.symbols.DeviceGetPowerManagementLimit != nil &&
+		g.symbols.DeviceSetPowerManagementLimit != nil &&
+		g.symbols.DeviceGetPowerManagementLimit(g.handle, &limit) == SUCCESS
+}
+
 func (g *NvidiaGpu) SetPl(mw int) error {
 	if ret := g.symbols.DeviceSetPowerManagementLimit(g.handle, uint32(mw)); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
@@ -162,14 +247,47 @@ func (g *NvidiaGpu) SetPl(mw int) error {
 	return nil
 }
 
-func (g *NvidiaGpu) SetCo(mhz int) error {
-	if ret := g.symbols.DeviceSetGpcClkVfOffset(g.handle, int32(mhz)); ret != SUCCESS {
+func (g *NvidiaGpu) SetCoGpu(mhz int) error {
+	// fallback
+	if g.symbols.DeviceSetClockOffsets == nil {
+		if ret := g.symbols.DeviceSetGpcClkVfOffset(g.handle, int32(mhz)); ret != SUCCESS {
+			return fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return nil
+	}
+
+	var co ClockOffset
+	co.Version = VERSION_CLOCK_OFFSET
+	co.Type = CLOCK_GRAPHICS
+	co.Pstate = PSTATE_0
+	co.ClockOffsetMHz = int32(mhz)
+	if ret := g.symbols.DeviceSetClockOffsets(g.handle, &co); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return nil
 }
 
-func (g *NvidiaGpu) SetCl(mhz int) error {
+func (g *NvidiaGpu) SetCoMem(mhz int) error {
+	// fallback
+	if g.symbols.DeviceSetClockOffsets == nil {
+		if ret := g.symbols.DeviceSetMemClkVfOffset(g.handle, int32(mhz)); ret != SUCCESS {
+			return fmt.Errorf(g.symbols.StringFromReturn(ret))
+		}
+		return nil
+	}
+
+	var co ClockOffset
+	co.Version = VERSION_CLOCK_OFFSET
+	co.Type = CLOCK_MEM
+	co.Pstate = PSTATE_0
+	co.ClockOffsetMHz = int32(mhz)
+	if ret := g.symbols.DeviceSetClockOffsets(g.handle, &co); ret != SUCCESS {
+		return fmt.Errorf(g.symbols.StringFromReturn(ret))
+	}
+	return nil
+}
+
+func (g *NvidiaGpu) SetClGpu(mhz int) error {
 	if ret := g.symbols.DeviceSetGpuLockedClocks(g.handle, uint32(mhz), uint32(mhz)); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}

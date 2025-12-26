@@ -19,13 +19,16 @@ type Device interface {
 	GetTemperature() (int, error)      // celsius
 	GetFanSpeed() (int, int, error)    // percent, rpm
 
-	GetCo() (int, int, error)       // gpu, mem
+	GetCoGpu() (int, error)         // MHz
+	GetCoMem() (int, error)         // MHz
 	GetPl() (int, error)            // mW
 	GetCoLimGpu() (int, int, error) // min, max
 	GetCoLimMem() (int, int, error) // min, max
 	GetPlLim() (int, int, error)    // min, max
 
-	SetPl(int) error // mW
-	SetCo(int) error // MHz
-	SetCl(int) error // set clock limit; MHz
+	CanSetPl() bool
+	SetPl(int) error    // mW
+	SetCoGpu(int) error // MHz
+	SetCoMem(int) error // MHz
+	SetClGpu(int) error // set clock limit; MHz
 }

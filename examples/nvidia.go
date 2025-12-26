@@ -43,7 +43,7 @@ func printDeviceInfo(index int, dev gpu.Device) {
 	pLim, _ := dev.GetPl()
 	pMin, pMax, _ := dev.GetPlLim()
 
-	coCurr, _, _ := dev.GetCo()
+	coCurr, _ := dev.GetCoGpu()
 	coMin, coMax, _ := dev.GetCoLimGpu()
 
 	// 格式说明:

@@ -14,8 +14,8 @@ func Load(lib string) (uintptr, error) {
 }
 
 func Bind(lib uintptr, ptr any, name string) {
-	addr, _ := syscall.GetProcAddress(syscall.Handle(lib), name)
-	if addr != 0 {
+	addr, err := syscall.GetProcAddress(syscall.Handle(lib), name)
+	if err == nil && addr != 0 {
 		purego.RegisterFunc(ptr, addr)
 	}
 }

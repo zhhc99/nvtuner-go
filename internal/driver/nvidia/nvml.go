@@ -49,10 +49,14 @@ type RawSymbols struct {
 
 	// oc: clock offsets
 	DeviceGetClockOffsets         func(device Device, info *ClockOffset) Return
+	DeviceGetGpcClkVfOffset       func(device Device, offset *int32) Return          // GetClockOffsetsLegacy
 	DeviceGetGpcClkMinMaxVfOffset func(device Device, min *int32, max *int32) Return // GetClockOffsetsLegacy
+	DeviceGetMemClkVfOffset       func(device Device, offset *int32) Return
+	DeviceGetMemClkMinMaxVfOffset func(device Device, min *int32, max *int32) Return
 	DeviceGetMaxClockInfo         func(device Device, clockType ClockType, clock *uint32) Return
 	DeviceSetClockOffsets         func(device Device, info *ClockOffset) Return
 	DeviceSetGpcClkVfOffset       func(device Device, offset int32) Return // SetClockOffsetsLegacy
+	DeviceSetMemClkVfOffset       func(device Device, offset int32) Return
 
 	// oc: locked clocks
 	DeviceSetGpuLockedClocks   func(device Device, min uint32, max uint32) Return
@@ -79,31 +83,35 @@ func NewRawSymbols() (*RawSymbols, error) {
 	libloader.Bind(lib, &nvml.DeviceGetUUID, "nvmlDeviceGetUUID")
 	libloader.Bind(lib, &nvml.DeviceGetName, "nvmlDeviceGetName")
 
+	libloader.Bind(lib, &nvml.DeviceGetUtilizationRates, "nvmlDeviceGetUtilizationRates")
+	libloader.Bind(lib, &nvml.DeviceGetMemoryInfo, "nvmlDeviceGetMemoryInfo")
+	libloader.Bind(lib, &nvml.DeviceGetClockInfo, "nvmlDeviceGetClockInfo")
+	libloader.Bind(lib, &nvml.DeviceGetPowerUsage, "nvmlDeviceGetPowerUsage")
+	libloader.Bind(lib, &nvml.DeviceGetEnforcedPowerLimit, "nvmlDeviceGetEnforcedPowerLimit")
+	libloader.Bind(lib, &nvml.DeviceGetTemperature, "nvmlDeviceGetTemperature")
+	libloader.Bind(lib, &nvml.DeviceGetTemperatureV, "nvmlDeviceGetTemperatureV")
+	libloader.Bind(lib, &nvml.DeviceGetFanSpeed, "nvmlDeviceGetFanSpeed")
+	libloader.Bind(lib, &nvml.DeviceGetFanSpeedRPM, "nvmlDeviceGetFanSpeedRPM")
+	libloader.Bind(lib, &nvml.DeviceGetSamples, "nvmlDeviceGetSamples")
+	libloader.Bind(lib, &nvml.DeviceGetCurrentClocksEventReasons, "nvmlDeviceGetCurrentClocksEventReasons")
+
 	libloader.Bind(lib, &nvml.DeviceGetPowerManagementLimitConstraints, "nvmlDeviceGetPowerManagementLimitConstraints")
 	libloader.Bind(lib, &nvml.DeviceGetPowerManagementDefaultLimit, "nvmlDeviceGetPowerManagementDefaultLimit")
 	libloader.Bind(lib, &nvml.DeviceGetPowerManagementLimit, "nvmlDeviceGetPowerManagementLimit")
-	libloader.Bind(lib, &nvml.DeviceGetEnforcedPowerLimit, "nvmlDeviceGetEnforcedPowerLimit")
 	libloader.Bind(lib, &nvml.DeviceSetPowerManagementLimit, "nvmlDeviceSetPowerManagementLimit")
-	libloader.Bind(lib, &nvml.DeviceGetPowerUsage, "nvmlDeviceGetPowerUsage")
-
-	libloader.Bind(lib, &nvml.DeviceGetMaxClockInfo, "nvmlDeviceGetMaxClockInfo")
-	libloader.Bind(lib, &nvml.DeviceGetClockInfo, "nvmlDeviceGetClockInfo")
-	libloader.Bind(lib, &nvml.DeviceSetGpuLockedClocks, "nvmlDeviceSetGpuLockedClocks")
-	libloader.Bind(lib, &nvml.DeviceResetGpuLockedClocks, "nvmlDeviceResetGpuLockedClocks")
 
 	libloader.Bind(lib, &nvml.DeviceGetClockOffsets, "nvmlDeviceGetClockOffsets")
-	libloader.Bind(lib, &nvml.DeviceSetClockOffsets, "nvmlDeviceSetClockOffsets")
+	libloader.Bind(lib, &nvml.DeviceGetGpcClkVfOffset, "nvmlDeviceGetGpcClkVfOffset")
 	libloader.Bind(lib, &nvml.DeviceGetGpcClkMinMaxVfOffset, "nvmlDeviceGetGpcClkMinMaxVfOffset")
+	libloader.Bind(lib, &nvml.DeviceGetMemClkVfOffset, "nvmlDeviceGetMemClkVfOffset")
+	libloader.Bind(lib, &nvml.DeviceGetMemClkMinMaxVfOffset, "nvmlDeviceGetMemClkMinMaxVfOffset")
+	libloader.Bind(lib, &nvml.DeviceGetMaxClockInfo, "nvmlDeviceGetMaxClockInfo")
+	libloader.Bind(lib, &nvml.DeviceSetClockOffsets, "nvmlDeviceSetClockOffsets")
 	libloader.Bind(lib, &nvml.DeviceSetGpcClkVfOffset, "nvmlDeviceSetGpcClkVfOffset")
+	libloader.Bind(lib, &nvml.DeviceSetMemClkVfOffset, "nvmlDeviceSetMemClkVfOffset")
 
-	libloader.Bind(lib, &nvml.DeviceGetFanSpeed, "nvmlDeviceGetFanSpeed")
-	libloader.Bind(lib, &nvml.DeviceGetFanSpeedRPM, "nvmlDeviceGetFanSpeedRPM")
-	libloader.Bind(lib, &nvml.DeviceGetTemperature, "nvmlDeviceGetTemperature")
-	libloader.Bind(lib, &nvml.DeviceGetTemperatureV, "nvmlDeviceGetTemperatureV")
-	libloader.Bind(lib, &nvml.DeviceGetMemoryInfo, "nvmlDeviceGetMemoryInfo")
-	libloader.Bind(lib, &nvml.DeviceGetUtilizationRates, "nvmlDeviceGetUtilizationRates")
-	libloader.Bind(lib, &nvml.DeviceGetSamples, "nvmlDeviceGetSamples")
-	libloader.Bind(lib, &nvml.DeviceGetCurrentClocksEventReasons, "nvmlDeviceGetCurrentClocksEventReasons")
+	libloader.Bind(lib, &nvml.DeviceSetGpuLockedClocks, "nvmlDeviceSetGpuLockedClocks")
+	libloader.Bind(lib, &nvml.DeviceResetGpuLockedClocks, "nvmlDeviceResetGpuLockedClocks")
 
 	return nvml, nil
 }

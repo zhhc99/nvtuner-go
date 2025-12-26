@@ -12,5 +12,8 @@ func Load(lib string) (uintptr, error) {
 }
 
 func Bind(lib uintptr, ptr any, name string) {
-	purego.RegisterLibFunc(ptr, lib, name)
+	addr, err := purego.Dlsym(lib, name)
+	if err == nil && addr != 0 {
+		purego.RegisterFunc(ptr, addr)
+	}
 }
