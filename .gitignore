@@ -1,4 +1,6 @@
 # Binaries for programs and plugins
+/bin/
+/out/
 *.exe
 *.exe~
 *.dll
@@ -30,3 +32,6 @@ go.work.sum
 
 # gemini-cli
 GEMINI.md
+
+# macos
+.DS_Store
