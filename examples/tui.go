@@ -9,6 +9,12 @@ import (
 )
 
 func main() {
+	f, err := tea.LogToFile("debug.log", "debug")
+	if err != nil {
+		log.Fatalf("Failed to create log file: %v", err)
+	}
+	defer f.Close()
+
 	drv, err := nvidia.New()
 	if err != nil {
 		log.Fatalf("Failed to load driver: %v", err)
