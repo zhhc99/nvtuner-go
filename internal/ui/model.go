@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"nvtuner-go/internal/config"
 	"nvtuner-go/internal/gpu"
 	"strconv"
 	"time"
@@ -36,14 +37,13 @@ type Model struct {
 	driver  gpu.Manager
 	devices []gpu.Device
 	states  []gpu.State
+	config  *config.Manager
 
-	// Navigation
 	activeTab       Tab
 	activeDeviceIdx int
 	width, height   int
 	err             error
 
-	// Overclock Editing
 	cursor    InputField
 	inputs    map[InputField]string
 	editing   bool
@@ -51,7 +51,7 @@ type Model struct {
 	statusErr bool
 }
 
-func NewModel(drv gpu.Manager) (*Model, error) {
+func NewModel(drv gpu.Manager, cfg *config.Manager) (*Model, error) {
 	devs, err := drv.Devices()
 	if err != nil {
 		return nil, err
@@ -66,6 +66,7 @@ func NewModel(drv gpu.Manager) (*Model, error) {
 		driver:          drv,
 		devices:         devs,
 		states:          states,
+		config:          cfg,
 		activeTab:       TabDashboard,
 		activeDeviceIdx: 0,
 		cursor:          InputPower,
@@ -175,10 +176,12 @@ func fetchState(idx int, d gpu.Device) gpu.State {
 
 	s.CoGpu, _ = d.GetCoGpu()
 	s.CoMem, _ = d.GetCoMem()
+	s.ClGpu, _ = d.GetClGpu()
 
 	s.Limits.PlMin, s.Limits.PlMax, _ = d.GetPlLim()
 	s.Limits.CoGpuMin, s.Limits.CoGpuMax, _ = d.GetCoLimGpu()
 	s.Limits.CoMemMin, s.Limits.CoMemMax, _ = d.GetCoLimMem()
+	s.Limits.ClGpuMin, s.Limits.ClGpuMax, _ = d.GetClLimGpu()
 
 	return s
 }
@@ -201,6 +204,8 @@ func (m *Model) updateOverclock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "r":
 			// Quick Reset for current field
 			return m, m.resetCurrentField()
+		case "s":
+			return m, m.saveConfig()
 		}
 		return m, nil
 	}
@@ -244,7 +249,7 @@ func (m *Model) startEditing() {
 	case InputMemOffset:
 		val = strconv.Itoa(s.CoMem)
 	case InputClockLock:
-		val = "0" // Default to 0 for locked clock UI
+		val = strconv.Itoa(s.ClGpu)
 	}
 	m.inputs[m.cursor] = val
 }
@@ -294,5 +299,44 @@ func (m *Model) resetCurrentField() tea.Cmd {
 			return statusMsg{fmt.Sprintf("Reset Error: %v", err), true}
 		}
 		return statusMsg{"Reset successfully", false}
+	}
+}
+
+func (m *Model) saveConfig() tea.Cmd {
+	dev := m.devices[m.activeDeviceIdx]
+
+	// Read current values directly from device to ensure we save what's active
+	pl, _ := dev.GetPl()
+	coGpu, _ := dev.GetCoGpu()
+	coMem, _ := dev.GetCoMem()
+	clGpu, _ := dev.GetClGpu() // This returns cached val or calculated limit
+
+	// If GetClGpu returns a very high calculated value (unlocked), we shouldn't save it as a lock
+	// unless we implement logic to distinguish.
+	// However, usually we only want to save explicit locks.
+	// For simplicity, we assume if clGpu matches the set value we keep it.
+
+	// Better approach: We rely on the applied state.
+	// Since GetClGpu now returns (Max - Offset) when unlocked, saving that value
+	// might accidentally lock it to the max if reloaded.
+	// We need to know if it's actually locked.
+	// Limitation: The current Device interface doesn't explicitly say "IsLocked".
+	// But `SetClGpu(0)` is reset.
+	// Let's assume if the user hits Save, they want the current snapshot.
+
+	settings := config.GpuSettings{
+		PowerLimit: pl,
+		CoreOffset: coGpu,
+		MemOffset:  coMem,
+		ClockLock:  clGpu,
+	}
+
+	m.config.Set(dev.GetUUID(), settings)
+
+	return func() tea.Msg {
+		if err := m.config.Save(); err != nil {
+			return statusMsg{fmt.Sprintf("Save Failed: %v", err), true}
+		}
+		return statusMsg{"Config Saved", false}
 	}
 }

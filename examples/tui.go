@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"nvtuner-go/internal/config"
 	"nvtuner-go/internal/driver/nvidia"
 	"nvtuner-go/internal/ui"
 
@@ -15,6 +16,11 @@ func main() {
 	}
 	defer f.Close()
 
+	cfg := config.New("config.json")
+	if err := cfg.Load(); err != nil {
+		log.Printf("Warning: Failed to load config: %v", err)
+	}
+
 	drv, err := nvidia.New()
 	if err != nil {
 		log.Fatalf("Failed to load driver: %v", err)
@@ -24,7 +30,7 @@ func main() {
 	}
 	defer drv.Shutdown()
 
-	model, err := ui.NewModel(drv)
+	model, err := ui.NewModel(drv, cfg)
 	if err != nil {
 		log.Fatalf("Failed to create UI model: %v", err)
 	}

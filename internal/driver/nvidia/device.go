@@ -15,6 +15,8 @@ type NvidiaGpu struct {
 	symbols *RawSymbols
 	name    string
 	uuid    string
+
+	cachedClGpu int
 }
 
 func (g *NvidiaGpu) GetName() string { return g.name }
@@ -183,6 +185,19 @@ func (g *NvidiaGpu) GetCoMem() (int, error) {
 	return int(co.ClockOffsetMHz), nil
 }
 
+func (g *NvidiaGpu) GetClGpu() (int, error) {
+	if g.cachedClGpu > 0 {
+		return g.cachedClGpu, nil
+	}
+
+	// assume not locked if cache is not set yet. return stocked limit here.
+	_, max, err := g.GetClLimGpu()
+	if err != nil {
+		return 0, err
+	}
+	return max, nil
+}
+
 func (g *NvidiaGpu) GetPlLim() (int, int, error) {
 	var min, max uint32
 	if ret := g.symbols.DeviceGetPowerManagementLimitConstraints(g.handle, &min, &max); ret != SUCCESS {
@@ -229,6 +244,10 @@ func (g *NvidiaGpu) GetCoLimMem() (int, int, error) {
 		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return int(co.MinClockOffsetMHz), int(co.MaxClockOffsetMHz), nil
+}
+
+func (g *NvidiaGpu) GetClLimGpu() (int, int, error) {
+	return g.getClLimGpuV2()
 }
 
 func (g *NvidiaGpu) CanSetPl() bool {
@@ -322,4 +341,119 @@ func (g *NvidiaGpu) ResetClGpu() error {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return nil
+}
+
+func (g *NvidiaGpu) getSupportedMemClocks() ([]int, error) {
+	var count uint32
+	ret := g.symbols.DeviceGetSupportedMemoryClocks(g.handle, &count, nil)
+	if ret != SUCCESS && ret != ERROR_INSUFFICIENT_SIZE {
+		return nil, fmt.Errorf("failed to get supported mem clock count: %s", g.symbols.StringFromReturn(ret))
+	}
+
+	if count == 0 {
+		return []int{}, nil
+	}
+
+	clocks := make([]uint32, count)
+	ret = g.symbols.DeviceGetSupportedMemoryClocks(g.handle, &count, &clocks[0])
+	if ret != SUCCESS {
+		return nil, fmt.Errorf("failed to fetch supported mem clocks: %s", g.symbols.StringFromReturn(ret))
+	}
+
+	res := make([]int, count)
+	for i, v := range clocks {
+		res[i] = int(v)
+	}
+	return res, nil
+}
+
+func (g *NvidiaGpu) getSupportedGpuClocks(memClockMHz int) ([]int, error) {
+	var count uint32
+	ret := g.symbols.DeviceGetSupportedGraphicsClocks(g.handle, uint32(memClockMHz), &count, nil)
+	if ret != SUCCESS && ret != ERROR_INSUFFICIENT_SIZE {
+		return nil, fmt.Errorf("failed to get gpu clock count: %s", g.symbols.StringFromReturn(ret))
+	}
+
+	if count == 0 {
+		return []int{}, nil
+	}
+
+	clocks := make([]uint32, count)
+	ret = g.symbols.DeviceGetSupportedGraphicsClocks(g.handle, uint32(memClockMHz), &count, &clocks[0])
+	if ret != SUCCESS {
+		return nil, fmt.Errorf("failed to fetch gpu clocks: %s", g.symbols.StringFromReturn(ret))
+	}
+
+	res := make([]int, count)
+	for i, v := range clocks {
+		res[i] = int(v)
+	}
+	return res, nil
+}
+
+func (g *NvidiaGpu) getClLimGpuV1() (int, int, error) {
+	// a faster way, which ignores min cl lim
+
+	var max uint32
+	if ret := g.symbols.DeviceGetMaxClockInfo(g.handle, CLOCK_GRAPHICS, &max); ret != SUCCESS {
+		return 0, 0, fmt.Errorf("failed to get max clock: %s", g.symbols.StringFromReturn(ret))
+	}
+	co, err := g.GetCoGpu()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get current co: %w", err)
+	}
+	return 0, int(max) - co, nil
+}
+
+func (g *NvidiaGpu) getClLimGpuV2() (int, int, error) {
+	// see also: nvidia-smi -q -d SUPPORTED_CLOCKS
+
+	memClocks, err := g.getSupportedMemClocks()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get supported mem clocks: %w", err)
+	}
+	if len(memClocks) == 0 {
+		return 0, 0, errors.New("no supported mem clocks")
+	}
+
+	minMem := memClocks[0]
+	maxMem := memClocks[0]
+	for _, m := range memClocks {
+		if m < minMem {
+			minMem = m
+		}
+		if m > maxMem {
+			maxMem = m
+		}
+	}
+
+	minGpuClocks, err := g.getSupportedGpuClocks(minMem)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get gpu clocks for min mem %d: %v", minMem, err)
+	}
+	if len(minGpuClocks) == 0 {
+		return 0, 0, fmt.Errorf("no gpu clocks found for min mem %d", minMem)
+	}
+	maxGpuClocks, err := g.getSupportedGpuClocks(maxMem)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get gpu clocks for max mem %d: %v", maxMem, err)
+	}
+	if len(maxGpuClocks) == 0 {
+		return 0, 0, fmt.Errorf("no gpu clocks found for max mem %d", maxMem)
+	}
+
+	minGpu := minGpuClocks[0]
+	for _, g := range minGpuClocks {
+		if g < minGpu {
+			minGpu = g
+		}
+	}
+	maxGpu := maxGpuClocks[0]
+	for _, g := range maxGpuClocks {
+		if g > maxGpu {
+			maxGpu = g
+		}
+	}
+
+	return minGpu, maxGpu, nil
 }

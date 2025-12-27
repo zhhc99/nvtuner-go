@@ -22,9 +22,11 @@ type Device interface {
 	GetPl() (int, error)            // mW
 	GetCoGpu() (int, error)         // MHz
 	GetCoMem() (int, error)         // MHz
+	GetClGpu() (int, error)         // MHz
 	GetPlLim() (int, int, error)    // min, max
 	GetCoLimGpu() (int, int, error) // min, max
 	GetCoLimMem() (int, int, error) // min, max
+	GetClLimGpu() (int, int, error) // min, max
 
 	CanSetPl() bool
 	SetPl(int) error    // mW
@@ -54,6 +56,7 @@ type State struct {
 	MemUsed  float64 // GiB
 	CoGpu    int     // MHz
 	CoMem    int     // MHz
+	ClGpu    int     // MHz
 	Limits   Limits
 }
 
@@ -61,4 +64,5 @@ type Limits struct {
 	PlMin, PlMax       int
 	CoGpuMin, CoGpuMax int
 	CoMemMin, CoMemMax int
+	ClGpuMin, ClGpuMax int
 }

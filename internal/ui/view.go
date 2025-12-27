@@ -79,46 +79,45 @@ func (m *Model) viewOverclock() string {
 		listHeader("Controls (Enter to Edit, R to Reset)"),
 
 		m.renderControl(InputPower, "Power Limit (W)", s.PowerLim/1000,
-			fmt.Sprintf("%d - %d", s.Limits.PlMin/1000, s.Limits.PlMax/1000)),
+			fmt.Sprintf("%d to %d", s.Limits.PlMin/1000, s.Limits.PlMax/1000)),
 
-		m.renderControl(InputCoreOffset, "Core Offset (MHz)", s.CoGpu,
+		m.renderControl(InputCoreOffset, "Core CO (MHz)", s.CoGpu,
 			fmt.Sprintf("%d to %d", s.Limits.CoGpuMin, s.Limits.CoGpuMax)),
 
-		m.renderControl(InputMemOffset, "Mem Offset (MHz)", s.CoMem,
+		m.renderControl(InputMemOffset, "Mem CO (MHz)", s.CoMem,
 			fmt.Sprintf("%d to %d", s.Limits.CoMemMin, s.Limits.CoMemMax)),
 
-		m.renderControl(InputClockLock, "Lock Core (MHz)", 0,
-			"Set 0 to reset"),
+		m.renderControl(InputClockLock, "Core CL (MHz)", s.ClGpu,
+			fmt.Sprintf("%d to %d", s.Limits.ClGpuMin, s.Limits.ClGpuMax)),
 
 		"\n"+m.renderStatus(),
 	)
 
 	doc.WriteString(docStyle.Render(controls))
-	doc.WriteString("\n[Shift+Tab] Mode | [Up/Down] Select | [Enter] Apply | [R] Reset | [Q] Quit")
+	doc.WriteString("\n[Shift+Tab] Mode | [Up/Down] Select | [Enter] Apply | [R] Reset | [S] Save | [Q] Quit")
 	return doc.String()
 }
 
 func (m *Model) renderControl(id InputField, label string, currentVal int, hint string) string {
 	cursor := " "
-	style := lipgloss.NewStyle()
+	labelStyle := lipgloss.NewStyle()
 
 	if m.cursor == id {
 		cursor = ">"
-		style = style.Foreground(special)
+		labelStyle = labelStyle.Foreground(special)
 	}
 
 	valStr := fmt.Sprintf("%d", currentVal)
 	if m.editing && m.cursor == id {
 		valStr = m.inputs[id] + "_"
-		style = style.Bold(true)
+		labelStyle = labelStyle.Bold(true)
 	}
 
-	return fmt.Sprintf("%s %-18s: %s  %s",
-		cursor,
-		style.Render(label),
-		inputStyle.Render(valStr),
-		lipgloss.NewStyle().Foreground(subtle).Render("("+hint+")"),
-	)
+	l := lipgloss.PlaceHorizontal(18, lipgloss.Left, labelStyle.Render(label))
+	v := inputStyle.Render(valStr)
+	h := lipgloss.NewStyle().Foreground(subtle).Render("(" + hint + ")")
+
+	return fmt.Sprintf("%s %s: %s  %s", cursor, l, v, h)
 }
 
 func (m *Model) renderStatus() string {

@@ -59,8 +59,10 @@ type RawSymbols struct {
 	DeviceSetMemClkVfOffset       func(device Device, offset int32) Return
 
 	// oc: locked clocks
-	DeviceSetGpuLockedClocks   func(device Device, min uint32, max uint32) Return
-	DeviceResetGpuLockedClocks func(device Device) Return
+	DeviceGetSupportedMemoryClocks   func(device Device, count *uint32, clocksMHz *uint32) Return
+	DeviceGetSupportedGraphicsClocks func(device Device, memoryClockMHz uint32, count *uint32, clocksMHz *uint32) Return
+	DeviceSetGpuLockedClocks         func(device Device, min uint32, max uint32) Return
+	DeviceResetGpuLockedClocks       func(device Device) Return
 }
 
 func NewRawSymbols() (*RawSymbols, error) {
@@ -110,6 +112,8 @@ func NewRawSymbols() (*RawSymbols, error) {
 	libloader.Bind(lib, &nvml.DeviceSetGpcClkVfOffset, "nvmlDeviceSetGpcClkVfOffset")
 	libloader.Bind(lib, &nvml.DeviceSetMemClkVfOffset, "nvmlDeviceSetMemClkVfOffset")
 
+	libloader.Bind(lib, &nvml.DeviceGetSupportedMemoryClocks, "nvmlDeviceGetSupportedMemoryClocks")
+	libloader.Bind(lib, &nvml.DeviceGetSupportedGraphicsClocks, "nvmlDeviceGetSupportedGraphicsClocks")
 	libloader.Bind(lib, &nvml.DeviceSetGpuLockedClocks, "nvmlDeviceSetGpuLockedClocks")
 	libloader.Bind(lib, &nvml.DeviceResetGpuLockedClocks, "nvmlDeviceResetGpuLockedClocks")
 
