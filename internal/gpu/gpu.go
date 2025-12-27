@@ -19,12 +19,12 @@ type Device interface {
 	GetTemperature() (int, error)      // celsius
 	GetFanSpeed() (int, int, error)    // %, rpm
 
+	GetPl() (int, error)            // mW
 	GetCoGpu() (int, error)         // MHz
 	GetCoMem() (int, error)         // MHz
-	GetPl() (int, error)            // mW
+	GetPlLim() (int, int, error)    // min, max
 	GetCoLimGpu() (int, int, error) // min, max
 	GetCoLimMem() (int, int, error) // min, max
-	GetPlLim() (int, int, error)    // min, max
 
 	CanSetPl() bool
 	SetPl(int) error    // mW

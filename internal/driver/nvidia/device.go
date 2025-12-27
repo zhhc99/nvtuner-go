@@ -135,6 +135,14 @@ func (g *NvidiaGpu) GetFanSpeed() (int, int, error) {
 	return int(percent), 0, nil
 }
 
+func (g *NvidiaGpu) GetPl() (int, error) {
+	var mw uint32
+	if ret := g.symbols.DeviceGetEnforcedPowerLimit(g.handle, &mw); ret != SUCCESS {
+		return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+	}
+	return int(mw), nil
+}
+
 func (g *NvidiaGpu) GetCoGpu() (int, error) {
 	// fallback
 	if g.symbols.DeviceGetClockOffsets == nil {
@@ -175,12 +183,12 @@ func (g *NvidiaGpu) GetCoMem() (int, error) {
 	return int(co.ClockOffsetMHz), nil
 }
 
-func (g *NvidiaGpu) GetPl() (int, error) {
-	var mw uint32
-	if ret := g.symbols.DeviceGetEnforcedPowerLimit(g.handle, &mw); ret != SUCCESS {
-		return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
+func (g *NvidiaGpu) GetPlLim() (int, int, error) {
+	var min, max uint32
+	if ret := g.symbols.DeviceGetPowerManagementLimitConstraints(g.handle, &min, &max); ret != SUCCESS {
+		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
-	return int(mw), nil
+	return int(min), int(max), nil
 }
 
 func (g *NvidiaGpu) GetCoLimGpu() (int, int, error) {
@@ -221,14 +229,6 @@ func (g *NvidiaGpu) GetCoLimMem() (int, int, error) {
 		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return int(co.MinClockOffsetMHz), int(co.MaxClockOffsetMHz), nil
-}
-
-func (g *NvidiaGpu) GetPlLim() (int, int, error) {
-	var min, max uint32
-	if ret := g.symbols.DeviceGetPowerManagementLimitConstraints(g.handle, &min, &max); ret != SUCCESS {
-		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
-	}
-	return int(min), int(max), nil
 }
 
 func (g *NvidiaGpu) CanSetPl() bool {
