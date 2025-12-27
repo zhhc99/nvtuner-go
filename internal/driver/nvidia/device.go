@@ -292,7 +292,7 @@ func (g *NvidiaGpu) SetCoMem(mhz int) error {
 }
 
 func (g *NvidiaGpu) SetClGpu(mhz int) error {
-	if ret := g.symbols.DeviceSetGpuLockedClocks(g.handle, uint32(mhz), uint32(mhz)); ret != SUCCESS {
+	if ret := g.symbols.DeviceSetGpuLockedClocks(g.handle, 0, uint32(mhz)); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return nil
