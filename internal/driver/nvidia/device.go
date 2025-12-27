@@ -1,6 +1,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"nvtuner-go/internal/gpu"
 	"strings"
@@ -241,6 +242,9 @@ func (g *NvidiaGpu) CanSetPl() bool {
 }
 
 func (g *NvidiaGpu) SetPl(mw int) error {
+	if !g.CanSetPl() {
+		return errors.New("controlled by vbios/hardware")
+	}
 	if ret := g.symbols.DeviceSetPowerManagementLimit(g.handle, uint32(mw)); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
@@ -289,6 +293,32 @@ func (g *NvidiaGpu) SetCoMem(mhz int) error {
 
 func (g *NvidiaGpu) SetClGpu(mhz int) error {
 	if ret := g.symbols.DeviceSetGpuLockedClocks(g.handle, uint32(mhz), uint32(mhz)); ret != SUCCESS {
+		return fmt.Errorf(g.symbols.StringFromReturn(ret))
+	}
+	return nil
+}
+
+func (g *NvidiaGpu) ResetPl() error {
+	if !g.CanSetPl() {
+		return errors.New("controlled by vbios/hardware")
+	}
+	defaultPl, err := g.GetPl()
+	if err != nil {
+		return err
+	}
+	return g.SetPl(defaultPl)
+}
+
+func (g *NvidiaGpu) ResetCoGpu() error {
+	return g.SetCoGpu(0)
+}
+
+func (g *NvidiaGpu) ResetCoMem() error {
+	return g.SetCoMem(0)
+}
+
+func (g *NvidiaGpu) ResetClGpu() error {
+	if ret := g.symbols.DeviceResetGpuLockedClocks(g.handle); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return nil

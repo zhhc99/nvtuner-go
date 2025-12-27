@@ -17,7 +17,7 @@ type Device interface {
 	GetMemory() (int, int, int, error) // total, free, used
 	GetPower() (int, error)            // mW
 	GetTemperature() (int, error)      // celsius
-	GetFanSpeed() (int, int, error)    // percent, rpm
+	GetFanSpeed() (int, int, error)    // %, rpm
 
 	GetCoGpu() (int, error)         // MHz
 	GetCoMem() (int, error)         // MHz
@@ -31,4 +31,34 @@ type Device interface {
 	SetCoGpu(int) error // MHz
 	SetCoMem(int) error // MHz
 	SetClGpu(int) error // set clock limit; MHz
+	ResetPl() error
+	ResetCoGpu() error
+	ResetCoMem() error
+	ResetClGpu() error
+}
+
+type State struct {
+	Index    int
+	Name     string
+	UUID     string
+	GpuUtil  int     // %
+	MemUtil  int     // %
+	Temp     int     // Celsius
+	FanPct   int     // %
+	FanRPM   int     // RPM
+	Power    int     // mW
+	PowerLim int     // mW
+	ClockGpu int     // MHz
+	ClockMem int     // MHz
+	MemTotal float64 // GiB
+	MemUsed  float64 // GiB
+	CoGpu    int     // MHz
+	CoMem    int     // MHz
+	Limits   Limits
+}
+
+type Limits struct {
+	PlMin, PlMax       int
+	CoGpuMin, CoGpuMax int
+	CoMemMin, CoMemMax int
 }
