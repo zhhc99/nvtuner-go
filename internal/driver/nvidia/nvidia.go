@@ -67,10 +67,10 @@ func (d *NvidiaDriver) Devices() ([]gpu.Device, error) {
 			continue
 		}
 
-		g := &NvidiaGpu{handle: handle, symbols: d.s}
-		g.index = int(i)
-		g.name = g.fetchName()
-		g.uuid = g.fetchUUID()
+		g := NewNvidiaGpu(handle, d.s)
+		if g.index != int(i) {
+			panic("fatal: gpu index mismatch")
+		}
 		res = append(res, g)
 	}
 	return res, nil

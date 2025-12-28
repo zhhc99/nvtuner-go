@@ -81,6 +81,13 @@ func (m *MState) FetchOnce(mgr Manager) {
 }
 
 func (d *DState) FetchOnce(dev Device) {
+	d.Index = dev.GetIndex()
+	if d.Name == "" {
+		d.Name = dev.GetName()
+	}
+	if d.UUID == "" {
+		d.UUID = dev.GetUUID()
+	}
 	d.UtilGpu, d.UtilMem, _ = dev.GetUtil()
 	d.Temp, _ = dev.GetTemperature()
 	d.FanPct, d.FanRPM, _ = dev.GetFanSpeed()

@@ -20,24 +20,42 @@ type NvidiaGpu struct {
 	cachedClGpu int
 }
 
+func NewNvidiaGpu(handle Device, symbols *RawSymbols) *NvidiaGpu {
+	g := &NvidiaGpu{handle: handle, symbols: symbols}
+
+	g.fetchIndex()
+	g.fetchName()
+	g.fetchUUID()
+
+	return g
+}
+
 func (g *NvidiaGpu) GetIndex() int   { return g.index }
 func (g *NvidiaGpu) GetName() string { return g.name }
 func (g *NvidiaGpu) GetUUID() string { return g.uuid }
 
-func (g *NvidiaGpu) fetchName() string {
-	var buf [DEVICE_NAME_BUFFER_SIZE]byte
-	if ret := g.symbols.DeviceGetName(g.handle, &buf[0], DEVICE_NAME_BUFFER_SIZE); ret != SUCCESS {
-		return "Unknown Nvidia GPU"
+func (g *NvidiaGpu) fetchIndex() {
+	var index uint32
+	if ret := g.symbols.DeviceGetIndex(g.handle, &index); ret != SUCCESS {
+		panic("Fatal: failed to fetch gpu index. check if your gpu is still connected.")
 	}
-	return strings.TrimRight(string(buf[:]), "\x00")
+	g.index = int(index)
 }
 
-func (g *NvidiaGpu) fetchUUID() string {
+func (g *NvidiaGpu) fetchName() {
+	var buf [DEVICE_NAME_BUFFER_SIZE]byte
+	if ret := g.symbols.DeviceGetName(g.handle, &buf[0], DEVICE_NAME_BUFFER_SIZE); ret != SUCCESS {
+		g.name = "Unknown Nvidia GPU"
+	}
+	g.name = strings.TrimRight(string(buf[:]), "\x00")
+}
+
+func (g *NvidiaGpu) fetchUUID() {
 	var buf [DEVICE_UUID_BUFFER_SIZE]byte
 	if ret := g.symbols.DeviceGetUUID(g.handle, &buf[0], DEVICE_UUID_BUFFER_SIZE); ret != SUCCESS {
-		return "Unknown UUID"
+		g.uuid = "Unknown UUID"
 	}
-	return strings.TrimRight(string(buf[:]), "\x00")
+	g.uuid = strings.TrimRight(string(buf[:]), "\x00")
 }
 
 func (g *NvidiaGpu) GetUtil() (int, int, error) {
