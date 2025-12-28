@@ -25,6 +25,7 @@ type RawSymbols struct {
 	// find devices
 	DeviceGetCount_v2         func(count *uint32) Return
 	DeviceGetHandleByIndex_v2 func(index uint32, device *Device) Return
+	DeviceGetIndex            func(device Device, index *uint32) Return
 	DeviceGetUUID             func(device Device, buffer *byte, length uint32) Return // NVML_DEVICE_UUID_BUFFER_SIZE=80
 	DeviceGetName             func(device Device, buffer *byte, length uint32) Return // NVML_DEVICE_NAME_BUFFER_SIZE=64
 
@@ -82,6 +83,7 @@ func NewRawSymbols() (*RawSymbols, error) {
 
 	libloader.Bind(lib, &nvml.DeviceGetCount_v2, "nvmlDeviceGetCount_v2")
 	libloader.Bind(lib, &nvml.DeviceGetHandleByIndex_v2, "nvmlDeviceGetHandleByIndex_v2")
+	libloader.Bind(lib, &nvml.DeviceGetIndex, "nvmlDeviceGetIndex")
 	libloader.Bind(lib, &nvml.DeviceGetUUID, "nvmlDeviceGetUUID")
 	libloader.Bind(lib, &nvml.DeviceGetName, "nvmlDeviceGetName")
 

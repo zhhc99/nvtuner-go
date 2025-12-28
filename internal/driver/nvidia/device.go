@@ -13,12 +13,14 @@ var _ gpu.Device = (*NvidiaGpu)(nil)
 type NvidiaGpu struct {
 	handle  Device
 	symbols *RawSymbols
+	index   int
 	name    string
 	uuid    string
 
 	cachedClGpu int
 }
 
+func (g *NvidiaGpu) GetIndex() int   { return g.index }
 func (g *NvidiaGpu) GetName() string { return g.name }
 func (g *NvidiaGpu) GetUUID() string { return g.uuid }
 

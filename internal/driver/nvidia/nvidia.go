@@ -68,6 +68,7 @@ func (d *NvidiaDriver) Devices() ([]gpu.Device, error) {
 		}
 
 		g := &NvidiaGpu{handle: handle, symbols: d.s}
+		g.index = int(i)
 		g.name = g.fetchName()
 		g.uuid = g.fetchUUID()
 		res = append(res, g)
