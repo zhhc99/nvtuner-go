@@ -10,11 +10,11 @@ import (
 )
 
 func main() {
-	f, err := tea.LogToFile("debug.log", "debug")
-	if err != nil {
-		log.Fatalf("Failed to create log file: %v", err)
-	}
-	defer f.Close()
+	// f, err := tea.LogToFile("debug.log", "debug")
+	// if err != nil {
+	// 	log.Fatalf("Failed to create log file: %v", err)
+	// }
+	// defer f.Close()
 
 	cfg := config.New("config.json")
 	if err := cfg.Load(); err != nil {
@@ -30,7 +30,7 @@ func main() {
 	}
 	defer drv.Shutdown()
 
-	model, err := ui.NewModel(drv, cfg)
+	model, err := ui.New(drv, cfg)
 	if err != nil {
 		log.Fatalf("Failed to create UI model: %v", err)
 	}
