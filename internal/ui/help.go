@@ -33,6 +33,10 @@ var keys = keyMap{
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
 	),
+	Uuid: key.NewBinding(
+		key.WithKeys("u"),
+		key.WithHelp("u", "toggle UUID"),
+	),
 }
 
 type keyMap struct {
@@ -43,15 +47,16 @@ type keyMap struct {
 	Reset key.Binding
 	Save  key.Binding
 	Quit  key.Binding
+	Uuid  key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Quit}
+	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Uuid, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Tab},
+		{k.Tab, k.Up, k.Down, k.Uuid},
 		{k.Enter, k.Reset, k.Save, k.Quit},
 	}
 }
