@@ -88,7 +88,7 @@ func (g *NvidiaGpu) GetMemory() (int, int, int, error) {
 func (g *NvidiaGpu) GetPower() (int, error) {
 	var mw uint32
 	if ret := g.symbols.DeviceGetPowerUsage(g.handle, &mw); ret == SUCCESS {
-		return int(mw), nil
+		return int(mw / 1000), nil
 	}
 	return g.getPowerViaSample()
 }
@@ -117,7 +117,7 @@ func (g *NvidiaGpu) getPowerViaSample() (int, error) {
 		mw = float64(sample.SampleValue.AsUint())
 	}
 
-	return int(mw), nil
+	return int(mw / 1000), nil
 }
 
 func (g *NvidiaGpu) GetTemperature() (int, error) {
@@ -162,7 +162,7 @@ func (g *NvidiaGpu) GetPl() (int, error) {
 	if ret := g.symbols.DeviceGetEnforcedPowerLimit(g.handle, &mw); ret != SUCCESS {
 		return 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
-	return int(mw), nil
+	return int(mw / 1000), nil
 }
 
 func (g *NvidiaGpu) GetCoGpu() (int, error) {
@@ -223,7 +223,7 @@ func (g *NvidiaGpu) GetPlLim() (int, int, error) {
 	if ret := g.symbols.DeviceGetPowerManagementLimitConstraints(g.handle, &min, &max); ret != SUCCESS {
 		return 0, 0, fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
-	return int(min), int(max), nil
+	return int(min / 1000), int(max / 1000), nil
 }
 
 func (g *NvidiaGpu) GetCoLimGpu() (int, int, error) {
@@ -280,11 +280,11 @@ func (g *NvidiaGpu) CanSetPl() bool {
 		g.symbols.DeviceGetPowerManagementLimit(g.handle, &limit) == SUCCESS
 }
 
-func (g *NvidiaGpu) SetPl(mw int) error {
+func (g *NvidiaGpu) SetPl(watt int) error {
 	if !g.CanSetPl() {
 		return errors.New("controlled by vbios/hardware")
 	}
-	if ret := g.symbols.DeviceSetPowerManagementLimit(g.handle, uint32(mw)); ret != SUCCESS {
+	if ret := g.symbols.DeviceSetPowerManagementLimit(g.handle, uint32(watt*1000)); ret != SUCCESS {
 		return fmt.Errorf(g.symbols.StringFromReturn(ret))
 	}
 	return nil
@@ -341,11 +341,11 @@ func (g *NvidiaGpu) ResetPl() error {
 	if !g.CanSetPl() {
 		return errors.New("controlled by vbios/hardware")
 	}
-	defaultPl, err := g.GetPl()
-	if err != nil {
-		return err
+	var defaultPl uint32
+	if ret := g.symbols.DeviceGetPowerManagementDefaultLimit(g.handle, &defaultPl); ret != SUCCESS {
+		return fmt.Errorf("failed to get default pl: %s", g.symbols.StringFromReturn(ret))
 	}
-	return g.SetPl(defaultPl)
+	return g.SetPl(int(defaultPl / 1000))
 }
 
 func (g *NvidiaGpu) ResetCoGpu() error {

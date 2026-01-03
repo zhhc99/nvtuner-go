@@ -16,11 +16,11 @@ type Device interface {
 	GetUtil() (int, int, error)        // gpu, mem
 	GetClocks() (int, int, error)      // gpu, mem; MHz
 	GetMemory() (int, int, int, error) // total, free, used; Byte
-	GetPower() (int, error)            // mW
+	GetPower() (int, error)            // W
 	GetTemperature() (int, error)      // celsius
 	GetFanSpeed() (int, int, error)    // %, rpm
 
-	GetPl() (int, error)            // mW
+	GetPl() (int, error)            // W
 	GetCoGpu() (int, error)         // MHz
 	GetCoMem() (int, error)         // MHz
 	GetClGpu() (int, error)         // MHz
@@ -30,7 +30,7 @@ type Device interface {
 	GetClLimGpu() (int, int, error) // min, max
 
 	CanSetPl() bool
-	SetPl(int) error    // mW
+	SetPl(int) error    // W
 	SetCoGpu(int) error // MHz
 	SetCoMem(int) error // MHz
 	SetClGpu(int) error // set clock limit; MHz
@@ -55,8 +55,8 @@ type DState struct {
 	Temp     int // Celsius
 	FanPct   int // %
 	FanRPM   int // RPM
-	Power    int // mW
-	PowerLim int // mW
+	Power    int // W
+	PowerLim int // W
 	ClockGpu int // MHz
 	ClockMem int // MHz
 	MemTotal int // Byte
