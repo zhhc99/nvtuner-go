@@ -46,7 +46,7 @@ var th = Theme{
 	Sep: lipgloss.NewStyle().
 		Foreground(plt.Border),
 	Title: lipgloss.NewStyle().
-		Foreground(plt.Major).
+		Foreground(plt.Border).
 		Bold(true),
 	Focus: lipgloss.NewStyle().
 		Foreground(plt.Hyper).

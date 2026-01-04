@@ -7,7 +7,10 @@ require (
 	github.com/ebitengine/purego v0.9.1
 )
 
-require github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
+require (
+	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
+)
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

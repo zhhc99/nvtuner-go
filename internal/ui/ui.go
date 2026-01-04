@@ -11,7 +11,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	lg "github.com/charmbracelet/lipgloss"
 )
@@ -21,34 +21,35 @@ const GIGA = 1024 * 1024 * 1024
 var _ tea.Model = (*Model)(nil)
 
 type Model struct {
+	width, height int
+
+	config  *config.Manager
 	driver  gpu.Manager
 	mState  gpu.MState
 	devices []gpu.Device
 	dStates []gpu.DState
-	config  *config.Manager
 
-	width, height int
-	selectedGpu   int
-	showUuid      bool
+	selectedGpu int
+	showUuid    bool
 
-	tuningIndex       int
-	isEditing         bool
-	editBuf           string
-	statusMsg         string
-	statusIsErr       bool
-	spinner           spinner.Model
-	tuningUpdateUntil []time.Time
+	tuningIndex  int
+	isEditing    bool
+	tuningParams []TuningParam
+	tuningInput  textinput.Model
+
+	statusMsg   string
+	statusIsErr bool
 
 	clockHistory []*tinyrb.RingBuffer[DataPoint]
 	powerHistory []*tinyrb.RingBuffer[DataPoint]
 	tempHistory  []*tinyrb.RingBuffer[DataPoint]
 	memHistory   []*tinyrb.RingBuffer[DataPoint]
 
-	help help.Model
+	help  help.Model
+	popup PopupState
 }
-
 type tickMsg time.Time
-type statusMsg struct {
+type statusMsg struct { // TODO: why do we need this?
 	text string
 	err  bool
 }
@@ -62,6 +63,8 @@ func New(drv gpu.Manager, cfg *config.Manager) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// init manager & device states
 	mState := gpu.MState{}
 	mState.FetchOnce(drv)
 	dStates := make([]gpu.DState, len(devs))
@@ -69,6 +72,71 @@ func New(drv gpu.Manager, cfg *config.Manager) (*Model, error) {
 		dStates[i].FetchOnce(d)
 	}
 
+	// load / create configs
+	for _, d := range devs {
+		uuid := d.GetUUID()
+		if _, ok := cfg.Get(uuid); !ok {
+			defPl, _ := d.GetPlDefault()
+			_, defCl, _ := d.GetClLimGpu()
+			initSetting := config.GpuSettings{
+				PowerLimit: defPl,
+				GpuCO:      0,
+				MemCO:      0,
+				GpuCL:      defCl,
+			}
+			cfg.Set(uuid, initSetting)
+		}
+	}
+	cfg.Save()
+
+	// init tuning params
+	params := []TuningParam{
+		{
+			ID: "pl", Label: "POWER LIMIT:", ShortLabel: "PL", Unit: "W",
+			GetConfig:  func(c config.GpuSettings) int { return c.PowerLimit },
+			GetCurrent: func(d gpu.DState) int { return d.PowerLim },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.PlMin, d.Limits.PlMax },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.PowerLimit = v },
+			Apply:      func(d gpu.Device, v int) error { return d.SetPl(v) },
+		},
+		{
+			ID: "gpu_co", Label: "GPU CO:     ", ShortLabel: "G.CO", Unit: "MHz",
+			GetConfig:  func(c config.GpuSettings) int { return c.GpuCO },
+			GetCurrent: func(d gpu.DState) int { return d.CoGpu },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.CoGpuMin, d.Limits.CoGpuMax },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.GpuCO = v },
+			Apply:      func(d gpu.Device, v int) error { return d.SetCoGpu(v) },
+		},
+		{
+			ID: "mem_co", Label: "MEMORY CO:  ", ShortLabel: "M.CO", Unit: "MHz",
+			GetConfig:  func(c config.GpuSettings) int { return c.MemCO },
+			GetCurrent: func(d gpu.DState) int { return d.CoMem },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.CoMemMin, d.Limits.CoMemMax },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.MemCO = v },
+			Apply:      func(d gpu.Device, v int) error { return d.SetCoMem(v) },
+		},
+		{
+			ID: "gpu_cl", Label: "GPU LIMIT:  ", ShortLabel: "G.CL", Unit: "MHz",
+			GetConfig:  func(c config.GpuSettings) int { return c.GpuCL },
+			GetCurrent: func(d gpu.DState) int { return d.ClGpu },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.ClGpuMin, d.Limits.ClGpuMax },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.GpuCL = v },
+			Apply: func(d gpu.Device, v int) error {
+				if v == gpu.NO_VALUE || v < 0 {
+					return d.ResetClGpu()
+				}
+				return d.SetClGpu(v)
+			},
+		},
+	}
+
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.CharLimit = 5
+	ti.Width = 5
+	ti.TextStyle = th.Focus
+
+	// init history data
 	histClock := make([]*tinyrb.RingBuffer[DataPoint], len(devs))
 	histPower := make([]*tinyrb.RingBuffer[DataPoint], len(devs))
 	histTemp := make([]*tinyrb.RingBuffer[DataPoint], len(devs))
@@ -80,75 +148,130 @@ func New(drv gpu.Manager, cfg *config.Manager) (*Model, error) {
 		histMem[i] = tinyrb.New[DataPoint](512)
 	}
 
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = th.Focus
-
 	return &Model{
+		config:  cfg,
 		driver:  drv,
 		mState:  mState,
 		devices: devs,
 		dStates: dStates,
-		config:  cfg,
 
-		spinner:           s,
-		tuningUpdateUntil: make([]time.Time, 4),
+		tuningParams: params,
+		tuningInput:  ti,
 
 		clockHistory: histClock,
 		powerHistory: histPower,
 		tempHistory:  histTemp,
 		memHistory:   histMem,
 
-		help: help.New(),
+		help:  help.New(),
+		popup: PopupState{Type: PopupNone},
 	}, nil
 }
 
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		doTick(),
-		m.spinner.Tick,
+		textinput.Blink,
 	)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// popup handling
+	if m.popup.Type != PopupNone {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "esc":
+				m.popup.Type = PopupNone
+				m.statusMsg = "Cancelled"
+				m.statusIsErr = false
+			case "enter":
+				return m.handlePopupConfirm()
+			}
+		}
+		return m, nil
+	}
+
+	// editing handling
+	if m.isEditing {
+		var cmd tea.Cmd
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.Type {
+			case tea.KeyEsc: // cancel tuning edit
+				m.isEditing = false
+				m.tuningInput.Blur()
+				m.statusMsg = "Edit Cancelled"
+				m.statusIsErr = false
+				return m, nil
+			case tea.KeyEnter: // save tuning profiles to config
+				valStr := m.tuningInput.Value()
+				val, err := strconv.Atoi(valStr)
+				if err != nil {
+					m.isEditing = false
+					m.tuningInput.Blur()
+					m.statusIsErr, m.statusMsg = true, "Invalid Input"
+					return m, nil
+				}
+
+				d := &m.dStates[m.selectedGpu]
+				cfg, _ := m.config.Get(d.UUID)
+				param := m.tuningParams[m.tuningIndex]
+				minVal, maxVal := param.GetLimits(*d)
+				if val < minVal || val > maxVal {
+					m.isEditing = false
+					m.tuningInput.Blur()
+					m.statusIsErr, m.statusMsg = true, "Value out of range"
+					return m, nil
+				}
+
+				param.SetConfig(&cfg, val)
+				m.config.Set(d.UUID, cfg)
+
+				if err := m.config.Save(); err != nil {
+					m.statusIsErr, m.statusMsg = true, fmt.Sprintf("Save Failed: %v", err)
+				} else {
+					m.statusIsErr, m.statusMsg = false, "Config Saved. Press 'a' to Apply."
+				}
+
+				m.isEditing = false
+				m.tuningInput.Blur()
+				return m, nil
+			}
+		}
+		m.tuningInput, cmd = m.tuningInput.Update(msg)
+		return m, cmd
+	}
+
+	// navigation
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.isEditing {
-			return m.handleEditMode(msg)
-		}
+		m.statusMsg = ""
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, keys.Tab):
-			m.statusMsg = ""
 			m.selectedGpu = (m.selectedGpu + 1) % len(m.devices)
-			m.editBuf = ""
 		case key.Matches(msg, keys.Uuid):
-			m.statusMsg = ""
 			m.showUuid = !m.showUuid
 		case key.Matches(msg, keys.Up):
-			m.statusMsg = ""
-			m.tuningIndex--
-			m.tuningIndex = max(0, m.tuningIndex)
+			m.tuningIndex = max(0, m.tuningIndex-1)
 		case key.Matches(msg, keys.Down):
-			m.statusMsg = ""
-			m.tuningIndex++
-			m.tuningIndex = min(3, m.tuningIndex)
+			m.tuningIndex = min(3, m.tuningIndex+1)
 		case key.Matches(msg, keys.Enter):
-			m.statusMsg = ""
-			d := &m.dStates[m.selectedGpu]
-			vals := []int{d.PowerLim, d.CoGpu, d.CoMem, d.ClGpu}
-			m.isEditing, m.editBuf = true, strconv.Itoa(vals[m.tuningIndex])
+			m.isEditing = true
+			cfg, _ := m.config.Get(m.dStates[m.selectedGpu].UUID)
+			val := m.tuningParams[m.tuningIndex].GetConfig(cfg)
+			m.tuningInput.SetValue(strconv.Itoa(val))
+			m.tuningInput.Focus()
+		case key.Matches(msg, keys.Apply):
+			m.popup = m.makeApplyPopup()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 	case statusMsg:
 		m.statusMsg, m.statusIsErr = msg.text, msg.err
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
 	case tickMsg:
 		now := time.Now()
 		for i, d := range m.devices {
@@ -158,53 +281,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.powerHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].Power)})
 			m.tempHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].Temp)})
 			m.memHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].MemUsed) / GIGA})
-
 		}
 		return m, doTick()
 	}
 	return m, nil
 }
 
-func (m *Model) handleEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		m.isEditing = false
-		m.statusMsg = "Cancelled"
-		m.statusIsErr = false
-	case "enter":
+func (m *Model) handlePopupConfirm() (tea.Model, tea.Cmd) {
+	if m.popup.Type == PopupApply {
+		m.popup.Type = PopupNone
+
 		dev := m.devices[m.selectedGpu]
-		sets := []func(int) error{
-			func(v int) error { return dev.SetPl(v * 1000) },
-			dev.SetCoGpu,
-			dev.SetCoMem,
-			dev.SetClGpu,
+		cfg, _ := m.config.Get(m.dStates[m.selectedGpu].UUID)
+		hasFailure := false
+		failureMsg := ""
+		for _, p := range m.tuningParams {
+			if err := p.Apply(dev, p.GetConfig(cfg)); err != nil {
+				hasFailure = true
+				failureMsg += fmt.Sprintf("%s: %v ", p.ShortLabel, err)
+			}
 		}
 
-		val, err := strconv.Atoi(m.editBuf)
-		m.isEditing = false
-		if err != nil {
-			m.statusIsErr, m.statusMsg = true, "Invalid input"
+		if hasFailure {
+			m.statusIsErr = true
+			m.statusMsg = failureMsg
 			return m, nil
 		}
-		m.tuningUpdateUntil[m.tuningIndex] = time.Now().Add(time.Second / 2)
 
-		return m, func() tea.Msg {
-			if err := sets[m.tuningIndex](val); err != nil {
-				return statusMsg{err.Error(), true}
-			}
-			return statusMsg{"Applied Successfully", false}
-		}
-	case "backspace":
-		if len(m.editBuf) > 0 {
-			m.editBuf = m.editBuf[:len(m.editBuf)-1]
-		}
-	default:
-		s := msg.String()
-		if (s >= "0" && s <= "9") || s == "-" {
-			if len(m.editBuf) < 5 { // max 5 digits
-				m.editBuf += s
-			}
-		}
+		m.statusIsErr = false
+		m.statusMsg = "Settings Applied Successfully"
+		return m, nil
 	}
 	return m, nil
 }
@@ -215,6 +321,10 @@ func (m *Model) View() string {
 	}
 	if len(m.devices) == 0 {
 		return "GPU not found"
+	}
+
+	if m.popup.Type != PopupNone {
+		return m.popupView(m.width, m.height)
 	}
 
 	headerText := fmt.Sprintf("%s %s | %s %s", "nvtuner", "v0.0.1",
@@ -230,8 +340,13 @@ func (m *Model) View() string {
 	boxHeight := m.height - helpHeight
 	cw := max(0, boxWidth-2)
 
+	dash := m.dashboardView(cw, 4)
+	uuidLine := ""
+	if m.showUuid {
+		uuidLine = th.Disabled.Width(cw).Render(m.dStates[m.selectedGpu].UUID)
+	}
 	content := lg.JoinVertical(lg.Center,
-		headerView, "", m.dashboardView(cw, 4))
+		headerView, "", dash, uuidLine)
 
 	hRemain := boxHeight - lg.Height(content)
 
@@ -258,7 +373,7 @@ func (m *Model) View() string {
 	if cw <= THIN { // simply place everything in one column
 		tunView := m.tuningView(cw)
 		if hRemain >= lg.Height(tunView) {
-			content = lg.JoinVertical(lg.Center, content, "", tunView)
+			content = lg.JoinVertical(lg.Center, content, tunView)
 			hRemain -= (1 + lg.Height(tunView))
 		}
 		for _, c := range chartDefs {
@@ -285,7 +400,7 @@ func (m *Model) View() string {
 			tempView := m.tsView(wTemp, row1H, c.name, c.data, 0, c.max)
 
 			row1 := lg.JoinHorizontal(lg.Top, tunView, tempView)
-			content = lg.JoinVertical(lg.Center, content, "", row1)
+			content = lg.JoinVertical(lg.Center, content, row1)
 			hRemain -= (1 + row1H)
 		}
 

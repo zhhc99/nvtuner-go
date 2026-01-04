@@ -21,21 +21,25 @@ var keys = keyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "edit"),
 	),
-	Reset: key.NewBinding(
-		key.WithKeys("r"),
-		key.WithHelp("r", "reset"),
-	),
 	Save: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "save"),
 	),
-	Quit: key.NewBinding(
-		key.WithKeys("q", "ctrl+c"),
-		key.WithHelp("q", "quit"),
+	Apply: key.NewBinding(
+		key.WithKeys("a"),
+		key.WithHelp("a", "apply"),
+	),
+	Reset: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "reset"),
 	),
 	Uuid: key.NewBinding(
 		key.WithKeys("u"),
 		key.WithHelp("u", "toggle UUID"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "ctrl+c"),
+		key.WithHelp("q", "quit"),
 	),
 }
 
@@ -44,19 +48,20 @@ type keyMap struct {
 	Down  key.Binding
 	Tab   key.Binding
 	Enter key.Binding
-	Reset key.Binding
 	Save  key.Binding
-	Quit  key.Binding
+	Apply key.Binding
+	Reset key.Binding
 	Uuid  key.Binding
+	Quit  key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Uuid, k.Quit}
+	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Apply, k.Uuid, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Tab, k.Up, k.Down, k.Uuid},
-		{k.Enter, k.Reset, k.Save, k.Quit},
+		{k.Enter, k.Save, k.Apply, k.Reset, k.Quit},
 	}
 }

@@ -1,5 +1,7 @@
 package gpu
 
+const NO_VALUE int = -0x7FFFFFFF
+
 type Manager interface {
 	Init() error
 	Shutdown() error
@@ -21,6 +23,7 @@ type Device interface {
 	GetFanSpeed() (int, int, error)    // %, rpm
 
 	GetPl() (int, error)            // W
+	GetPlDefault() (int, error)     // W
 	GetCoGpu() (int, error)         // MHz
 	GetCoMem() (int, error)         // MHz
 	GetClGpu() (int, error)         // MHz

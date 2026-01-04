@@ -9,10 +9,10 @@ import (
 const DefaultFileName = "config.json"
 
 type GpuSettings struct {
-	PowerLimit int `json:"pl,omitempty"`     // W
-	CoreOffset int `json:"co_gpu,omitempty"` // MHz
-	MemOffset  int `json:"co_mem,omitempty"` // MHz
-	ClockLock  int `json:"cl_gpu,omitempty"` // MHz
+	PowerLimit int `json:"pl"`     // W
+	GpuCO      int `json:"gpu_co"` // MHz
+	MemCO      int `json:"mem_co"` // MHz
+	GpuCL      int `json:"gpu_cl"` // MHz
 }
 
 type Manager struct {

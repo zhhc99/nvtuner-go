@@ -3,7 +3,6 @@ package ui
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	lg "github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -13,7 +12,7 @@ func RenderLineWithTitle(w int, title string) string {
 		return ""
 	}
 
-	lineChar := lipgloss.RoundedBorder().Top
+	lineChar := lg.RoundedBorder().Top
 	titleW := ansi.StringWidth(title)
 
 	// truncate title if too wide
@@ -37,14 +36,14 @@ func RenderLineWithTitle(w int, title string) string {
 }
 
 func RenderBoxWithTitle(title, content string) string {
-	border := lipgloss.RoundedBorder()
-	w, _ := lipgloss.Size(content)
+	border := lg.RoundedBorder()
+	w, _ := lg.Size(content)
 	topLine := border.TopLeft + RenderLineWithTitle(w, title) + border.TopRight
 
 	top := th.Sep.Render(topLine)
 	body := th.Box.Border(lg.RoundedBorder(), false, true, true, true).Render(content)
 
-	return lipgloss.JoinVertical(lipgloss.Left,
+	return lg.JoinVertical(lg.Left,
 		top,
 		body)
 }
