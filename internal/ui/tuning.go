@@ -18,9 +18,57 @@ type TuningParam struct {
 	GetConfig  func(c config.GpuSettings) int
 	GetCurrent func(d gpu.DState) int
 	GetLimits  func(d gpu.DState) (int, int) // min, max
+	GetDefault func(d gpu.DState) int
 
 	SetConfig func(c *config.GpuSettings, val int)
 	Apply     func(d gpu.Device, val int) error
+}
+
+func getDefaultTuningParams() []TuningParam {
+	return []TuningParam{
+		{
+			ID: "pl", Label: "POWER LIMIT:", ShortLabel: "PL", Unit: "W",
+			GetConfig:  func(c config.GpuSettings) int { return c.PowerLimit },
+			GetCurrent: func(d gpu.DState) int { return d.PowerLim },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.PlMin, d.Limits.PlMax },
+			GetDefault: func(d gpu.DState) int { return d.Defaults.Pl },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.PowerLimit = v },
+			Apply:      func(d gpu.Device, v int) error { return d.SetPl(v) },
+		},
+		{
+			ID: "gpu_co", Label: "GPU CO:     ", ShortLabel: "G.CO", Unit: "MHz",
+			GetConfig:  func(c config.GpuSettings) int { return c.GpuCO },
+			GetCurrent: func(d gpu.DState) int { return d.CoGpu },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.CoGpuMin, d.Limits.CoGpuMax },
+			GetDefault: func(d gpu.DState) int { return d.Defaults.CoGpu },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.GpuCO = v },
+			Apply:      func(d gpu.Device, v int) error { return d.SetCoGpu(v) },
+		},
+		{
+			ID: "mem_co", Label: "MEMORY CO:  ", ShortLabel: "M.CO", Unit: "MHz",
+			GetConfig:  func(c config.GpuSettings) int { return c.MemCO },
+			GetCurrent: func(d gpu.DState) int { return d.CoMem },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.CoMemMin, d.Limits.CoMemMax },
+			GetDefault: func(d gpu.DState) int { return d.Defaults.CoMem },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.MemCO = v },
+			Apply:      func(d gpu.Device, v int) error { return d.SetCoMem(v) },
+		},
+		{
+			ID: "gpu_cl", Label: "GPU LIMIT:  ", ShortLabel: "G.CL", Unit: "MHz",
+			GetConfig:  func(c config.GpuSettings) int { return c.GpuCL },
+			GetCurrent: func(d gpu.DState) int { return d.ClGpu },
+			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.ClGpuMin, d.Limits.ClGpuMax },
+			GetDefault: func(d gpu.DState) int { return d.Defaults.ClGpu },
+			SetConfig:  func(c *config.GpuSettings, v int) { c.GpuCL = v },
+			Apply: func(d gpu.Device, v int) error {
+				_, maxCl, _ := d.GetClLimGpu()
+				if v == gpu.NO_VALUE || v < 0 || v >= maxCl {
+					return d.ResetClGpu()
+				}
+				return d.SetClGpu(v)
+			},
+		},
+	}
 }
 
 func (m *Model) tuningView(width int) string {
@@ -31,7 +79,7 @@ func (m *Model) tuningView(width int) string {
 	cw := max(0, width-2)
 
 	// header
-	rows = append(rows, th.Title.Width(cw).Render(fmt.Sprintf("%2d: %s", d.Index, d.Name)))
+	rows = append(rows, th.PrimaryBold.Width(cw).Render(fmt.Sprintf("%2d: %s", d.Index, d.Name)))
 
 	// tuning params
 	// Level 1: Short Label + Range: "PL:   [ 250  ] W (100-450)"

@@ -89,47 +89,8 @@ func New(drv gpu.Manager, cfg *config.Manager) (*Model, error) {
 	}
 	cfg.Save()
 
-	// init tuning params
-	params := []TuningParam{
-		{
-			ID: "pl", Label: "POWER LIMIT:", ShortLabel: "PL", Unit: "W",
-			GetConfig:  func(c config.GpuSettings) int { return c.PowerLimit },
-			GetCurrent: func(d gpu.DState) int { return d.PowerLim },
-			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.PlMin, d.Limits.PlMax },
-			SetConfig:  func(c *config.GpuSettings, v int) { c.PowerLimit = v },
-			Apply:      func(d gpu.Device, v int) error { return d.SetPl(v) },
-		},
-		{
-			ID: "gpu_co", Label: "GPU CO:     ", ShortLabel: "G.CO", Unit: "MHz",
-			GetConfig:  func(c config.GpuSettings) int { return c.GpuCO },
-			GetCurrent: func(d gpu.DState) int { return d.CoGpu },
-			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.CoGpuMin, d.Limits.CoGpuMax },
-			SetConfig:  func(c *config.GpuSettings, v int) { c.GpuCO = v },
-			Apply:      func(d gpu.Device, v int) error { return d.SetCoGpu(v) },
-		},
-		{
-			ID: "mem_co", Label: "MEMORY CO:  ", ShortLabel: "M.CO", Unit: "MHz",
-			GetConfig:  func(c config.GpuSettings) int { return c.MemCO },
-			GetCurrent: func(d gpu.DState) int { return d.CoMem },
-			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.CoMemMin, d.Limits.CoMemMax },
-			SetConfig:  func(c *config.GpuSettings, v int) { c.MemCO = v },
-			Apply:      func(d gpu.Device, v int) error { return d.SetCoMem(v) },
-		},
-		{
-			ID: "gpu_cl", Label: "GPU LIMIT:  ", ShortLabel: "G.CL", Unit: "MHz",
-			GetConfig:  func(c config.GpuSettings) int { return c.GpuCL },
-			GetCurrent: func(d gpu.DState) int { return d.ClGpu },
-			GetLimits:  func(d gpu.DState) (int, int) { return d.Limits.ClGpuMin, d.Limits.ClGpuMax },
-			SetConfig:  func(c *config.GpuSettings, v int) { c.GpuCL = v },
-			Apply: func(d gpu.Device, v int) error {
-				if v == gpu.NO_VALUE || v < 0 {
-					return d.ResetClGpu()
-				}
-				return d.SetClGpu(v)
-			},
-		},
-	}
-
+	// init tuning panel
+	params := getDefaultTuningParams()
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 5
@@ -176,12 +137,31 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// tick
+	if _, ok := msg.(tickMsg); ok {
+		now := time.Now()
+		for i, d := range m.devices {
+			m.dStates[i].FetchOnce(d)
+			m.clockHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].ClockGpu)})
+			m.powerHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].Power)})
+			m.tempHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].Temp)})
+			m.memHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].MemUsed) / GIGA})
+		}
+		return m, doTick()
+	}
+
+	// resize
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+	}
+
 	// popup handling
 	if m.popup.Type != PopupNone {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
-			case "esc":
+			case "q":
 				m.popup.Type = PopupNone
 				m.statusMsg = "Cancelled"
 				m.statusIsErr = false
@@ -257,7 +237,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Up):
 			m.tuningIndex = max(0, m.tuningIndex-1)
 		case key.Matches(msg, keys.Down):
-			m.tuningIndex = min(3, m.tuningIndex+1)
+			m.tuningIndex = min(len(m.tuningParams)-1, m.tuningIndex+1)
 		case key.Matches(msg, keys.Enter):
 			m.isEditing = true
 			cfg, _ := m.config.Get(m.dStates[m.selectedGpu].UUID)
@@ -265,52 +245,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tuningInput.SetValue(strconv.Itoa(val))
 			m.tuningInput.Focus()
 		case key.Matches(msg, keys.Apply):
-			m.popup = m.makeApplyPopup()
+			m.popup.Type = PopupApply
+		case key.Matches(msg, keys.Reset):
+			m.popup.Type = PopupReset
 		}
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
 	case statusMsg:
 		m.statusMsg, m.statusIsErr = msg.text, msg.err
-	case tickMsg:
-		now := time.Now()
-		for i, d := range m.devices {
-			m.dStates[i].FetchOnce(d)
-
-			m.clockHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].ClockGpu)})
-			m.powerHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].Power)})
-			m.tempHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].Temp)})
-			m.memHistory[i].Push(DataPoint{Time: now, Value: float64(m.dStates[i].MemUsed) / GIGA})
-		}
-		return m, doTick()
-	}
-	return m, nil
-}
-
-func (m *Model) handlePopupConfirm() (tea.Model, tea.Cmd) {
-	if m.popup.Type == PopupApply {
-		m.popup.Type = PopupNone
-
-		dev := m.devices[m.selectedGpu]
-		cfg, _ := m.config.Get(m.dStates[m.selectedGpu].UUID)
-		hasFailure := false
-		failureMsg := ""
-		for _, p := range m.tuningParams {
-			if err := p.Apply(dev, p.GetConfig(cfg)); err != nil {
-				hasFailure = true
-				failureMsg += fmt.Sprintf("%s: %v ", p.ShortLabel, err)
-			}
-		}
-
-		if hasFailure {
-			m.statusIsErr = true
-			m.statusMsg = failureMsg
-			return m, nil
-		}
-
-		m.statusIsErr = false
-		m.statusMsg = "Settings Applied Successfully"
-		return m, nil
 	}
 	return m, nil
 }
@@ -351,7 +291,7 @@ func (m *Model) View() string {
 	hRemain := boxHeight - lg.Height(content)
 
 	ds := m.dStates[m.selectedGpu]
-	const chartH = 10
+	chartH := 10
 	type chartMeta struct {
 		name string
 		data *tinyrb.RingBuffer[DataPoint]
@@ -359,7 +299,7 @@ func (m *Model) View() string {
 	}
 	chartDefs := []chartMeta{
 		{"Temp (°C)", m.tempHistory[m.selectedGpu], 100.0},
-		{"Power (W)", m.powerHistory[m.selectedGpu], float64(ds.Limits.PlMax)}, // 已改 Watt
+		{"Power (W)", m.powerHistory[m.selectedGpu], float64(ds.Limits.PlMax)},
 		{"Clock (MHz)", m.clockHistory[m.selectedGpu], float64(ds.Limits.ClGpuMax)},
 		{"Mem (MB)", m.memHistory[m.selectedGpu], float64(ds.MemTotal) / 1024 / 1024},
 	}
@@ -371,10 +311,11 @@ func (m *Model) View() string {
 	)
 
 	if cw <= THIN { // simply place everything in one column
+		chartH := 8
 		tunView := m.tuningView(cw)
 		if hRemain >= lg.Height(tunView) {
 			content = lg.JoinVertical(lg.Center, content, tunView)
-			hRemain -= (1 + lg.Height(tunView))
+			hRemain -= lg.Height(tunView)
 		}
 		for _, c := range chartDefs {
 			if hRemain >= chartH {
@@ -401,7 +342,7 @@ func (m *Model) View() string {
 
 			row1 := lg.JoinHorizontal(lg.Top, tunView, tempView)
 			content = lg.JoinVertical(lg.Center, content, row1)
-			hRemain -= (1 + row1H)
+			hRemain -= row1H
 		}
 
 		if hRemain >= chartH {

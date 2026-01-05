@@ -40,8 +40,8 @@ func RenderBoxWithTitle(title, content string) string {
 	w, _ := lg.Size(content)
 	topLine := border.TopLeft + RenderLineWithTitle(w, title) + border.TopRight
 
-	top := th.Sep.Render(topLine)
-	body := th.Box.Border(lg.RoundedBorder(), false, true, true, true).Render(content)
+	top := th.Primary.Render(topLine)
+	body := th.PrimaryBorder.Border(lg.RoundedBorder(), false, true, true, true).Render(content)
 
 	return lg.JoinVertical(lg.Left,
 		top,

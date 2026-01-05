@@ -68,6 +68,7 @@ type DState struct {
 	CoMem    int // MHz
 	ClGpu    int // MHz
 	Limits   Limits
+	Defaults Defaults
 }
 
 type Limits struct {
@@ -75,6 +76,10 @@ type Limits struct {
 	CoGpuMin, CoGpuMax int
 	CoMemMin, CoMemMax int
 	ClGpuMin, ClGpuMax int
+}
+
+type Defaults struct {
+	Pl, CoGpu, CoMem, ClGpu int
 }
 
 func (m *MState) FetchOnce(mgr Manager) {
@@ -105,4 +110,6 @@ func (d *DState) FetchOnce(dev Device) {
 	d.Limits.CoGpuMin, d.Limits.CoGpuMax, _ = dev.GetCoLimGpu()
 	d.Limits.CoMemMin, d.Limits.CoMemMax, _ = dev.GetCoLimMem()
 	d.Limits.ClGpuMin, d.Limits.ClGpuMax, _ = dev.GetClLimGpu()
+	d.Defaults.Pl, _ = dev.GetPlDefault()
+	d.Defaults.CoGpu, d.Defaults.CoMem, d.Defaults.ClGpu = 0, 0, d.Limits.ClGpuMax
 }

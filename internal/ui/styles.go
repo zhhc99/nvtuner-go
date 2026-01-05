@@ -19,13 +19,13 @@ type Palette struct {
 }
 
 type Theme struct {
-	Box      lipgloss.Style
-	Sep      lipgloss.Style
-	Title    lipgloss.Style
-	Focus    lipgloss.Style
-	Label    lipgloss.Style
-	Value    lipgloss.Style
-	Disabled lipgloss.Style
+	PrimaryBorder lipgloss.Style
+	Primary       lipgloss.Style
+	PrimaryBold   lipgloss.Style
+	Focus         lipgloss.Style
+	Label         lipgloss.Style
+	Value         lipgloss.Style
+	Disabled      lipgloss.Style
 }
 
 var plt = Palette{
@@ -40,12 +40,12 @@ var plt = Palette{
 }
 
 var th = Theme{
-	Box: lipgloss.NewStyle().
+	PrimaryBorder: lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(plt.Border),
-	Sep: lipgloss.NewStyle().
+	Primary: lipgloss.NewStyle().
 		Foreground(plt.Border),
-	Title: lipgloss.NewStyle().
+	PrimaryBold: lipgloss.NewStyle().
 		Foreground(plt.Border).
 		Bold(true),
 	Focus: lipgloss.NewStyle().

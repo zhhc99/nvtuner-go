@@ -21,10 +21,10 @@ var keys = keyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "edit"),
 	),
-	Save: key.NewBinding(
-		key.WithKeys("s"),
-		key.WithHelp("s", "save"),
-	),
+	// Save: key.NewBinding(
+	// 	key.WithKeys("s"),
+	// 	key.WithHelp("s", "save"),
+	// ),
 	Apply: key.NewBinding(
 		key.WithKeys("a"),
 		key.WithHelp("a", "apply"),
@@ -56,12 +56,12 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Apply, k.Uuid, k.Quit}
+	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Apply, k.Reset, k.Uuid, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Tab, k.Up, k.Down, k.Uuid},
-		{k.Enter, k.Save, k.Apply, k.Reset, k.Quit},
+		{k.Tab, k.Up, k.Down, k.Enter},
+		{k.Apply, k.Reset, k.Uuid, k.Quit},
 	}
 }
